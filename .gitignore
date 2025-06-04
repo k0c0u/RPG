@@ -2,6 +2,8 @@
 .vs/
 .vsconfig
 
+Content/Assets
+
 # Build
 Build/
 
