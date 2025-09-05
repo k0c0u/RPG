@@ -1,7 +1,6 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "UObject/Interface.h"
 #include "EnemyInterface.generated.h"
 
@@ -24,4 +23,6 @@ public:
 
 	virtual void HighlightActor() = 0;
 	virtual void UnHighlightActor() = 0;
+
+	
 };

@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "RPG/Public/Character/PlayerCharacter.h"
+
+#include "AbilitySystemComponent.h"
 #include "Engine/LocalPlayer.h"
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
@@ -10,6 +12,10 @@
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "InputActionValue.h"
+#include "Controller/BasePlayerController.h"
+#include "Core/BaseHUD.h"
+#include "Core/BasePlayerState.h"
+#include "MotionWarpingComponent.h"
 
 DEFINE_LOG_CATEGORY(LogTemplateCharacter);
 
@@ -39,29 +45,82 @@ APlayerCharacter::APlayerCharacter()
 
 	// Create a camera boom (pulls in towards the player if there is a collision)
 	CameraBoom = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraBoom"));
-	CameraBoom->SetupAttachment(RootComponent);
+	CameraBoom->SetupAttachment(GetRootComponent());
 	CameraBoom->TargetArmLength = 750.0f; // The camera follows at this distance behind the character	
-	CameraBoom->bUsePawnControlRotation = true; // Rotate the arm based on the controller
-	CameraBoom->SetRelativeRotation(FRotator(0.0f, -45.0f, 0.0f));
+	CameraBoom->SetRelativeRotation(FRotator(-45.f, 0.f, 0.f));
+	CameraBoom->SetUsingAbsoluteRotation(true);
+	CameraBoom->bDoCollisionTest = false;
 
 	// Create a follow camera
 	FollowCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FollowCamera"));
 	FollowCamera->SetupAttachment(CameraBoom, USpringArmComponent::SocketName); // Attach the camera to the end of the boom and let the boom adjust to match the controller orientation
-	FollowCamera->bUsePawnControlRotation = false; // Camera does not rotate relative to arm
+	FollowCamera->bUsePawnControlRotation = false;
+
+	MotionWarpingComponent = CreateDefaultSubobject<UMotionWarpingComponent>(TEXT("MotionWarpingComponent"));
+}
+
+void APlayerCharacter::Move(const FInputActionValue& Value)
+{
+}
+
+void APlayerCharacter::PossessedBy(AController* NewController)
+{
+	Super::PossessedBy(NewController);
+
+	InitAbilityActorInfo();
+}
+
+void APlayerCharacter::OnRep_PlayerState()
+{
+	Super::OnRep_PlayerState();
+
+	InitAbilityActorInfo();
+}
+
+int32 APlayerCharacter::GetPlayerLevel() const
+{
+	if (ABasePlayerState* BasePlayerState = GetPlayerState<ABasePlayerState>())
+	{
+		return BasePlayerState->GetPlayerLevel();
+	}
+	return -1;
+}
+
+void APlayerCharacter::InitAbilityActorInfo()
+{
+	if (ABasePlayerState* BasePlayerState = GetPlayerState<ABasePlayerState>())
+	{
+		if (UAbilitySystemComponent* PlayerStateAbilitySystemComp = BasePlayerState->GetAbilitySystemComponent())
+		{
+			PlayerStateAbilitySystemComp->InitAbilityActorInfo(BasePlayerState, this);
+			AbilitySystemComponent = PlayerStateAbilitySystemComp;
+			AttributeSet = BasePlayerState->GetAttributeSet();
+
+			GiveAbilities();
+			ApplyStartupEffects();
+			
+			if (ABasePlayerController* PlayerController = Cast<ABasePlayerController>(GetController()))
+			{
+				if (ABaseHUD* HUD = Cast<ABaseHUD>(PlayerController->GetHUD()))
+				{
+					HUD->Init(PlayerController, BasePlayerState, AbilitySystemComponent.Get(), AttributeSet.Get());
+				}
+			}
+		}
+	}
 }
 
 void APlayerCharacter::NotifyControllerChanged()
 {
 	Super::NotifyControllerChanged();
-/*
-	// Add Input Mapping Context
+	
 	if (APlayerController* PlayerController = Cast<APlayerController>(Controller))
 	{
 		if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PlayerController->GetLocalPlayer()))
 		{
 			Subsystem->AddMappingContext(DefaultMappingContext, 0);
 		}
-	}*/
+	}
 }
 
 void APlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -77,6 +136,14 @@ void APlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCom
 	else
 	{
 		UE_LOG(LogTemplateCharacter, Error, TEXT("'%s' Failed to find an Enhanced Input component! This template is built to use the Enhanced Input system. If you intend to use the legacy system, then you will need to update this C++ file."), *GetNameSafe(this));
+	}
+}
+
+void APlayerCharacter::UpdateFacingTarget_Implementation(const FVector& TargetLocation)
+{
+	if (IsValid(MotionWarpingComponent))
+	{
+		MotionWarpingComponent->AddOrUpdateWarpTargetFromLocation(WarpTargetName, TargetLocation);
 	}
 }
 

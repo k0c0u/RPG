@@ -3,7 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "GameFramework/Character.h"
+#include "BaseCharacter.h"
 #include "Logging/LogMacros.h"
 #include "PlayerCharacter.generated.h"
 
@@ -12,46 +12,29 @@ class UCameraComponent;
 class UInputMappingContext;
 class UInputAction;
 struct FInputActionValue;
+class UMotionWarpingComponent;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogTemplateCharacter, Log, All);
 
 UCLASS(config=Game)
-class APlayerCharacter : public ACharacter
+class APlayerCharacter : public ABaseCharacter
 {
 	GENERATED_BODY()
-
-	/** Camera boom positioning the camera behind the character */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
-	USpringArmComponent* CameraBoom;
-
-	/** Follow camera */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
-	UCameraComponent* FollowCamera;
-	
-	/** MappingContext */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
-	UInputMappingContext* DefaultMappingContext;
-
-	/** Jump Input Action */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
-	UInputAction* JumpAction;
-
-	/** Look Input Action */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
-	UInputAction* LookAction;
 
 public:
 	APlayerCharacter();
 	
+	FORCEINLINE class USpringArmComponent* GetCameraBoom() const { return CameraBoom; }
+	
+	FORCEINLINE class UCameraComponent* GetFollowCamera() const { return FollowCamera; }
 
-protected:
+	virtual void PossessedBy(AController* NewController) override;
 
-	/** Called for movement input */
-	void Move(const FInputActionValue& Value);
+	virtual void OnRep_PlayerState() override;
 
-	/** Called for looking input */
-	void Look(const FInputActionValue& Value);
-			
+	//~ Begin Combat Interface
+	virtual int32 GetPlayerLevel() const override;
+	//~ End
 
 protected:
 
@@ -59,10 +42,43 @@ protected:
 
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
-public:
-	/** Returns CameraBoom subobject **/
-	FORCEINLINE class USpringArmComponent* GetCameraBoom() const { return CameraBoom; }
-	/** Returns FollowCamera subobject **/
-	FORCEINLINE class UCameraComponent* GetFollowCamera() const { return FollowCamera; }
+	void UpdateFacingTarget_Implementation(const FVector& TargetLocation);
+	
+	/** Called for movement input */
+	void Move(const FInputActionValue& Value);
+
+	/** Called for looking input */
+	void Look(const FInputActionValue& Value);
+
+private:
+	void InitAbilityActorInfo();
+
+	
+
+private:
+	TObjectPtr<UMotionWarpingComponent> MotionWarpingComponent = nullptr;
+	
+	/** Camera boom positioning the camera behind the character */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<USpringArmComponent> CameraBoom = nullptr;;
+
+	/** Follow camera */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UCameraComponent> FollowCamera = nullptr;
+	
+	/** MappingContext */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UInputMappingContext> DefaultMappingContext = nullptr;
+
+	/** Jump Input Action */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UInputAction> JumpAction = nullptr;
+
+	/** Look Input Action */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UInputAction> LookAction = nullptr;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Settings, meta = (AllowPrivateAccess = "true"))
+	FName WarpTargetName = "FacingTarget";
 };
 
